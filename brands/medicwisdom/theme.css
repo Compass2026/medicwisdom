@@ -1,0 +1,29 @@
+/*
+ * MEDIC WISDOM — the client's own palette, taken from the Elementor kit of
+ * the old site (--e-global-color-*): royal blue #0301C7 (primary), navy
+ * #140F2D (secondary), green #3FEA2B (accent, the logo's snake), light
+ * grey #F1F1F1 (section surface). Red #FF0000 is the kit's fourth colour;
+ * it is used only as the heartbeat in the ECG decoration (theme.config.ts),
+ * never for text, because white on #FF0000 is 4.0:1.
+ *
+ * Contrast (WCAG): white on 900 11.5:1, white on 950 18.5:1, 950 on
+ * accent-500 11.5:1, accent-500 on 900 7.1:1, accent-700 on white 6.3:1
+ * and on surface 5.5:1.
+ */
+:root {
+  --brand-primary-950: #140f2d; /* client navy */
+  --brand-primary-900: #0301c7; /* client royal blue */
+  --brand-primary-800: #2422d9;
+  --brand-primary-700: #4644e6;
+  --brand-primary-600: #6a68f0;
+  --brand-accent-300: #9df592;
+  --brand-accent-400: #6cf05c;
+  --brand-accent-500: #3fea2b; /* client green */
+  --brand-accent-600: #2bc81a;
+  --brand-accent-700: #17700e; /* text-safe on white/surface */
+  --brand-surface: #f1f1f1; /* client light grey */
+  --brand-ink: #140f2d;
+
+  --brand-font-heading: var(--font-poppins), "Poppins", "Segoe UI", system-ui, sans-serif;
+  --brand-font-body: var(--font-public-sans), "Public Sans", "Segoe UI", system-ui, sans-serif;
+}

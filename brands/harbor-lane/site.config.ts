@@ -78,6 +78,8 @@ export const site = {
     "Fictional demonstration: a two-branch plumbing company for homes and small businesses in Exampleton and Harbor County.",
   serviceCatalogName: "Plumbing services",
   serviceCatalog: ["Residential plumbing", "Commercial plumbing"],
+  /** Browser-tab icon: the reference icon; a fictional brand has no mark of its own. */
+  icon: "/brand/icon-showme.svg",
   shareImage: "/demo/placeholder-1200x630.png",
   logoUrl: "/demo/harbor-lane-logo.svg",
 

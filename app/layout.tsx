@@ -26,6 +26,8 @@ export const metadata: Metadata = {
     template: site.metadata.titleTemplate,
   },
   description: site.metadata.description,
+  // Per-brand browser-tab icon (a single app/icon.svg would give every brand the same one).
+  icons: { icon: site.icon },
   openGraph: {
     type: "website",
     siteName: site.name,

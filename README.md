@@ -1,3 +1,25 @@
+# Medic Wisdom — website
+
+This repository is **Medic Wisdom's** website, built on the Compass Website
+Foundation v1 (`Compass2026/showmeelectricalwebsite` @ `f928381`). The
+framework is shared; the client lives in `brands/medicwisdom/`.
+
+```bash
+npm ci
+COMPASS_BRAND=medicwisdom npm run build && COMPASS_BRAND=medicwisdom npm start
+```
+
+Deploy with `COMPASS_BRAND=medicwisdom` in every Vercel environment, plus
+`NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_ALLOW_INDEXING=true` in production
+only. Client decisions, open questions (including the lapsed
+`medicwisdom.com` domain) and the URL map are in `docs/medicwisdom/`.
+
+Everything below this line is the Foundation's own README, unchanged. It
+describes the reference client (Show Me Electrical), whose brand directory
+ships with the framework.
+
+---
+
 # Show Me Electrical — Website
 
 Next.js (App Router) + TypeScript + Tailwind CSS v4. Two properties share this

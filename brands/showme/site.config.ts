@@ -177,8 +177,10 @@ export const site = {
    * upload). `shareImage` is the default Open Graph / Twitter card for every
    * page without a bespoke image (1200×630, generated from the client's logo
    * on the brand surface — no photography, no claims). `logoUrl` is the
-   * 512×512 tile referenced by structured data.
+   * 512×512 tile referenced by structured data. `icon` is the browser-tab
+   * icon (formerly app/icon.svg).
    */
+  icon: "/brand/icon-showme.svg",
   shareImage: "/share-default.png",
   logoUrl: "/brand/logo-512.png",
 

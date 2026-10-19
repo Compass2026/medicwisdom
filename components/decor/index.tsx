@@ -1,4 +1,5 @@
 import CircuitBackground from "./CircuitBackground";
+import EcgBackground from "./EcgBackground";
 import { decoration } from "@/config/theme.config";
 
 /**
@@ -9,6 +10,7 @@ import { decoration } from "@/config/theme.config";
  */
 const heroBackdrops = {
   circuit: CircuitBackground,
+  ecg: EcgBackground,
   none: () => null,
 } as const;
 
@@ -20,10 +22,12 @@ export function HeroBackdrop() {
 
 /**
  * SVG path (viewBox 0 0 40 200) drawn between scroll-story nodes. The
- * "circuit" variant jogs like a PCB trace; "line" is a plain vertical.
+ * "circuit" variant jogs like a PCB trace; "ecg" carries one heartbeat
+ * spike; "line" is a plain vertical.
  */
 const storyRails = {
   circuit: "M20 0 V60 L34 80 V120 L20 140 V200",
+  ecg: "M20 0 V78 L14 90 L30 104 L9 126 L24 138 L20 146 V200",
   line: "M20 0 V200",
 } as const;
 

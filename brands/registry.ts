@@ -1,5 +1,6 @@
 import { redirects as showmeRedirects } from "./showme/redirects";
 import { redirects as harborLaneRedirects } from "./harbor-lane/redirects";
+import { redirects as medicwisdomRedirects } from "./medicwisdom/redirects";
 
 /**
  * BRAND REGISTRY — read by next.config.ts at build time (the only place
@@ -18,6 +19,7 @@ export interface BrandEntry {
 export const brands: Record<string, BrandEntry> = {
   showme: { dir: "showme", fictional: false, redirects: showmeRedirects },
   "harbor-lane": { dir: "harbor-lane", fictional: true, redirects: harborLaneRedirects },
+  medicwisdom: { dir: "medicwisdom", fictional: false, redirects: medicwisdomRedirects },
 };
 
 export const DEFAULT_BRAND = "showme";
