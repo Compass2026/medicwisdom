@@ -1,0 +1,358 @@
+import { site } from "@/config/site.config";
+import type { Crumb, Faq, ServicePageContent } from "@/content/services/types";
+import type { BranchLocationContent } from "@/content/locations/types";
+
+/**
+ * Structured data helpers — client-agnostic.
+ *
+ * Every client-specific value (schema type, description, service catalog,
+ * logo, address, service area) comes from `config/site.config.ts`. Repointing
+ * this at another client means editing that config, not this file.
+ *
+ * RULE: schema must describe content that is actually visible on the page and
+ * facts we can verify from client-owned sources. No aggregateRating (we have
+ * no verified review data), no openingHours and no priceRange.
+ *
+ * Emergency electrical repairs appear in the offer catalog because the owner
+ * confirmed the service (docs/decisions.md D-001) and the homepage names it.
+ * Availability is a separate claim: hours and response times are unconfirmed,
+ * so no `openingHours`, `openingHoursSpecification` or 24-7 property is
+ * emitted.
+ */
+
+export function localBusinessJsonLd(baseUrl: string = site.productionUrl) {
+  return {
+    "@context": "https://schema.org",
+    "@type": site.schemaType,
+    "@id": `${baseUrl}/#business`,
+    name: site.legalName,
+    alternateName: site.name,
+    url: baseUrl,
+    telephone: site.phone,
+    email: site.email,
+    description: site.businessDescription,
+    logo: `${baseUrl}${site.logoUrl}`,
+    image: `${baseUrl}${site.shareImage}`,
+    /**
+     * A service-area business has no street address, and Google asks that one
+     * is not published for it. Locality and region stay: they are true and
+     * they anchor the listing. Same omit-rather-than-invent rule as `geo`.
+     */
+    address: {
+      "@type": "PostalAddress",
+      ...(site.address.street ? { streetAddress: site.address.street } : {}),
+      addressLocality: site.address.city,
+      addressRegion: site.address.state,
+      ...(site.address.zip ? { postalCode: site.address.zip } : {}),
+      addressCountry: site.address.country,
+    },
+    /**
+     * Emitted only when real coordinates are configured. Approximate
+     * coordinates presented as the business location are a false claim, so the
+     * property is omitted rather than estimated. See site.config.ts.
+     */
+    ...(site.geo
+      ? {
+          geo: {
+            "@type": "GeoCoordinates",
+            latitude: site.geo.lat,
+            longitude: site.geo.lng,
+          },
+        }
+      : {}),
+    areaServed: [
+      ...site.counties.map((name) => ({ "@type": "AdministrativeArea", name })),
+      ...site.confirmedCities.map((name) => ({ "@type": "City", name })),
+    ],
+    ...(site.sameAs.length ? { sameAs: site.sameAs } : {}),
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: site.serviceCatalogName,
+      itemListElement: site.serviceCatalog.map((name) => ({
+        "@type": "Offer",
+        itemOffered: { "@type": "Service", name },
+      })),
+    },
+  };
+}
+
+export function websiteJsonLd(baseUrl: string = site.productionUrl) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${baseUrl}/#website`,
+    url: baseUrl,
+    name: site.name,
+    publisher: { "@id": `${baseUrl}/#business` },
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Service pages
+ * ------------------------------------------------------------------ */
+
+/**
+ * schema.org Service for a service page. `provider` references the business
+ * node by @id, so the page must also emit `localBusinessJsonLd()` in the same
+ * graph for that reference to resolve in a validator.
+ */
+export function serviceJsonLd(
+  content: ServicePageContent,
+  baseUrl: string = site.productionUrl
+) {
+  const url = `${baseUrl}${content.path}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "@id": `${url}#service`,
+    name: content.schema.name,
+    serviceType: content.schema.serviceType,
+    description: content.seo.description,
+    url,
+    provider: { "@id": `${baseUrl}/#business` },
+    areaServed: [
+      ...site.counties.map((name) => ({ "@type": "AdministrativeArea", name })),
+      ...site.confirmedCities.map((name) => ({ "@type": "City", name })),
+    ],
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: content.services.heading,
+      itemListElement: content.services.items.map((item) => ({
+        "@type": "Offer",
+        itemOffered: { "@type": "Service", name: item.name },
+      })),
+    },
+  };
+}
+
+/**
+ * FAQPage. The question and answer strings are the same objects the page
+ * renders, so the schema matches the visible text exactly (SOP §6.6).
+ */
+export function faqPageJsonLd(faqs: Faq[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
+/** BreadcrumbList from the same crumbs the visible breadcrumb renders. */
+export function breadcrumbJsonLd(
+  crumbs: Crumb[],
+  currentPath: string,
+  baseUrl: string = site.productionUrl
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.label,
+      item: `${baseUrl}${c.href ?? currentPath}`,
+    })),
+  };
+}
+
+/**
+ * schema.org AboutPage for /about. `about` points at the business node, so the
+ * page must also emit `localBusinessJsonLd()` for the reference to resolve.
+ */
+export function aboutPageJsonLd(
+  path: string,
+  name: string,
+  description: string,
+  baseUrl: string = site.productionUrl
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    "@id": `${baseUrl}${path}#webpage`,
+    url: `${baseUrl}${path}`,
+    name,
+    description,
+    about: { "@id": `${baseUrl}/#business` },
+    isPartOf: { "@id": `${baseUrl}/#website` },
+  };
+}
+
+/** schema.org WebPage for a core page (service area, etc.). */
+export function webPageJsonLd(
+  path: string,
+  name: string,
+  description: string,
+  baseUrl: string = site.productionUrl
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${baseUrl}${path}#webpage`,
+    url: `${baseUrl}${path}`,
+    name,
+    description,
+    about: { "@id": `${baseUrl}/#business` },
+    isPartOf: { "@id": `${baseUrl}/#website` },
+  };
+}
+
+/**
+ * schema.org CollectionPage listing implemented service pages. Items are
+ * inline nodes with their own URLs, so nothing references an @id that is
+ * not on the page.
+ */
+export function collectionPageJsonLd(
+  path: string,
+  name: string,
+  description: string,
+  items: { name: string; url: string }[],
+  baseUrl: string = site.productionUrl
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${baseUrl}${path}#webpage`,
+    url: `${baseUrl}${path}`,
+    name,
+    description,
+    about: { "@id": `${baseUrl}/#business` },
+    isPartOf: { "@id": `${baseUrl}/#website` },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: items.map((item, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        item: { "@type": "Service", name: item.name, url: item.url },
+      })),
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Articles and legal documents
+ * ------------------------------------------------------------------ */
+
+/**
+ * schema.org BlogPosting. `datePublished` and `author` are emitted only when
+ * the article carries them — never a placeholder date or a guessed author.
+ * The publisher is the business node, so the page must also emit
+ * `localBusinessJsonLd()`.
+ */
+export function blogPostingJsonLd(
+  article: {
+    path: string;
+    title: string;
+    seo: { description: string };
+    publishedAt?: string;
+    modifiedAt?: string;
+    author?: string;
+    image?: { src: string };
+  },
+  baseUrl: string = site.productionUrl
+) {
+  const url = `${baseUrl}${article.path}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": `${url}#article`,
+    mainEntityOfPage: url,
+    url,
+    headline: article.title,
+    description: article.seo.description,
+    ...(article.publishedAt ? { datePublished: article.publishedAt } : {}),
+    ...(article.modifiedAt ? { dateModified: article.modifiedAt } : {}),
+    ...(article.author
+      ? { author: { "@type": "Person", name: article.author } }
+      : {}),
+    image: `${baseUrl}${article.image ? article.image.src : site.shareImage}`,
+    publisher: { "@id": `${baseUrl}/#business` },
+    isPartOf: { "@id": `${baseUrl}/#website` },
+  };
+}
+
+/** schema.org Blog node for the index, listing the published posts. */
+export function blogJsonLd(
+  path: string,
+  name: string,
+  description: string,
+  posts: { path: string; title: string; publishedAt?: string }[],
+  baseUrl: string = site.productionUrl
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    "@id": `${baseUrl}${path}#blog`,
+    url: `${baseUrl}${path}`,
+    name,
+    description,
+    publisher: { "@id": `${baseUrl}/#business` },
+    isPartOf: { "@id": `${baseUrl}/#website` },
+    blogPost: posts.map((p) => ({
+      "@type": "BlogPosting",
+      headline: p.title,
+      url: `${baseUrl}${p.path}`,
+      ...(p.publishedAt ? { datePublished: p.publishedAt } : {}),
+    })),
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Physical locations
+ * ------------------------------------------------------------------ */
+
+/**
+ * A LocalBusiness subtype for ONE real place of business, linked to its
+ * parent organization. Everything comes from the location's own content:
+ * the type, the parent, the address, the phone, and opening hours only
+ * when the content records confirmed hours. Nothing is read from the
+ * reference client's config, so a demonstration fixture can describe a
+ * fictional parent without ever touching the client's business node.
+ */
+export function locationJsonLd(
+  location: BranchLocationContent,
+  baseUrl: string = site.productionUrl
+) {
+  const url = `${baseUrl}${location.path}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": location.schemaType,
+    "@id": `${url}#location`,
+    name: location.name,
+    url,
+    telephone: location.phone,
+    ...(location.email ? { email: location.email } : {}),
+    address: {
+      "@type": "PostalAddress",
+      ...(location.address.street ? { streetAddress: location.address.street } : {}),
+      addressLocality: location.address.city,
+      addressRegion: location.address.region,
+      postalCode: location.address.postalCode,
+      addressCountry: location.address.country,
+    },
+    parentOrganization: {
+      "@type": "Organization",
+      name: location.parent.name,
+      url: location.parent.url,
+    },
+    ...(location.header.image ? { image: `${baseUrl}${location.header.image.src}` } : {}),
+    ...(location.areaServed?.length
+      ? { areaServed: location.areaServed.map((name) => ({ "@type": "Place", name })) }
+      : {}),
+    ...(location.hours
+      ? {
+          openingHoursSpecification: location.hours.rules
+            .filter((r) => r.opens && r.closes)
+            .map((r) => ({
+              "@type": "OpeningHoursSpecification",
+              dayOfWeek: r.days,
+              opens: r.opens,
+              closes: r.closes,
+            })),
+        }
+      : {}),
+  };
+}

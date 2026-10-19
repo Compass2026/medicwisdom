@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/*
+ * SEMANTIC DESIGN TOKENS — the roles every component uses. Their VALUES come
+ * from the active brand's theme.css (imported by app/layout.tsx), which sets
+ * the --brand-* custom properties. Nothing brand-specific lives here.
+ *
+ *   primary-*  surfaces and headings (deep → mid)
+ *   accent-*   calls to action, highlights; accent-700 is the text-safe shade
+ *              on light surfaces (must meet 4.5:1 on white/surface)
+ *   surface    the light alternate background
+ *   ink        long-form body text on light surfaces
+ */
+@theme inline {
+  --color-primary-950: var(--brand-primary-950);
+  --color-primary-900: var(--brand-primary-900);
+  --color-primary-800: var(--brand-primary-800);
+  --color-primary-700: var(--brand-primary-700);
+  --color-primary-600: var(--brand-primary-600);
+  --color-accent-300: var(--brand-accent-300);
+  --color-accent-400: var(--brand-accent-400);
+  --color-accent-500: var(--brand-accent-500);
+  --color-accent-600: var(--brand-accent-600);
+  --color-accent-700: var(--brand-accent-700);
+  --color-surface: var(--brand-surface);
+  --color-ink: var(--brand-ink);
+
+  --font-heading: var(--brand-font-heading);
+  --font-body: var(--brand-font-body);
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Pairs with body's clip — see the note there. */
+  overflow-x: clip;
+  /*
+   * Anchor targets land below the sticky header. --header-h mirrors the
+   * measured height of SiteHeader (utility bar + nav): 96px on phones, 132px
+   * from the `sm` breakpoint where the logo grows to h-20. Set once here so
+   * every in-page link — nav, footer, skip link — clears the header with room
+   * to spare, rather than each section carrying its own scroll-margin.
+   */
+  --header-h: 96px;
+  scroll-padding-top: calc(var(--header-h) + 1.5rem);
+}
+
+@media (min-width: 640px) {
+  html {
+    --header-h: 132px;
+  }
+}
+
+body {
+  /*
+   * Horizontal reveal animations translate elements a few px outside the
+   * viewport before settling, which would otherwise create a transient
+   * horizontal scrollbar. `clip` is used rather than `hidden` because
+   * `overflow-x: hidden` on body turns it into a scroll container and breaks
+   * `position: sticky` on the header.
+   */
+  overflow-x: clip;
+  font-family: var(--font-body);
+  background-color: white;
+  color: var(--color-primary-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+}
+
+/* ---------- Scroll-reveal ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Hero circuit animation ---------- */
+@keyframes circuit-draw {
+  0% {
+    stroke-dashoffset: 600;
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--circuit-opacity, 0.5);
+  }
+  70% {
+    opacity: var(--circuit-opacity, 0.5);
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes node-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    r: 3;
+  }
+  50% {
+    opacity: 1;
+    r: 4.5;
+  }
+}
+
+.circuit-path {
+  stroke-dasharray: 300 300;
+  stroke-dashoffset: 600;
+  animation: circuit-draw 9s linear infinite;
+}
+
+.circuit-node {
+  animation: node-pulse 3.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .circuit-path {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 0.3;
+  }
+  .circuit-node {
+    animation: none;
+    opacity: 0.5;
+  }
+}

@@ -1,0 +1,259 @@
+import { NextRequest, NextResponse } from "next/server";
+import { inquiryConfig } from "@/config/inquiry.config";
+import {
+  normaliseInquiry,
+  validateInquiry,
+  isValidEmail,
+  readSubmissionId,
+  type InquiryErrors,
+  type InquiryConflictCode,
+} from "@/lib/inquiry";
+import {
+  httpMockProvider,
+  memoryMockProvider,
+  providerConflict,
+  resendProvider,
+  type EmailPayload,
+  type EmailProvider,
+} from "@/lib/email-provider";
+
+export const runtime = "nodejs";
+
+/**
+ * POST /api/inquiry — the contact form's delivery endpoint.
+ *
+ * Contract: a 2xx with `{ ok: true }` is the ONLY success. The form shows
+ * its success state on nothing else. Validation problems answer 400 with
+ * `{ errors }` keyed by field (same codes as the client), everything else
+ * answers with `{ error }` and a non-2xx status, and the form keeps the
+ * visitor's input on every one of those paths.
+ *
+ * Spam protection, in order: same-origin check, per-IP rate limit (per
+ * serverless instance — see config), honeypot (silent accept), server-side
+ * validation and length limits. No captcha — nothing here needs a
+ * third-party script. There is deliberately NO timing trap: a visitor who
+ * pastes or autofills can finish in under a second, and a message that
+ * passes every other check must never be silently discarded.
+ *
+ * Delivery: Resend, the same provider the live careers form uses; key from
+ * the environment only, through the adapter in lib/email-provider.ts.
+ * `INQUIRY_DELIVERY=mock|fail` swaps in a mock provider (or a simulated
+ * failure) for local and preview testing and is IGNORED in production, so a
+ * mocked success can never reach a real visitor.
+ *
+ * The careers `/api/apply` route is untouched by this file.
+ */
+
+/* ---------- Rate limit — PER INSTANCE, same pattern as /api/apply ----------
+ * `hits` is module state in one function instance. Vercel runs many
+ * instances; each has its own map, and a cold start begins empty. Treat this
+ * as a brake on a single connection hammering one warm instance, not as a
+ * deployment-wide quota. */
+const hits = new Map<string, number[]>();
+function rateLimited(ip: string): boolean {
+  const { windowMs, maxPerWindow } = inquiryConfig.rateLimit;
+  const now = Date.now();
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
+  if (recent.length >= maxPerWindow) {
+    hits.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  hits.set(ip, recent);
+  if (hits.size > 5000) {
+    for (const [key, times] of hits) {
+      if (times.every((t) => now - t >= windowMs)) hits.delete(key);
+    }
+  }
+  return false;
+}
+
+/* ---------- Duplicate guard — see lib/email-provider.ts and lib/inquiry.ts.
+ * The provider's Idempotency-Key is the ONE authority: every send, real or
+ * mocked, carries `inquiry/<submissionId>`, and the provider decides whether
+ * that is a first send, a repeat of the same message (the original result,
+ * nothing sent again), a different message under a used key (refused), or a
+ * send still in flight (refused). No local record is consulted before the
+ * provider, so nothing local can fake a success or block a retry. Outcomes
+ * are explicit — changed, in progress — and success is only ever reported
+ * from the provider's accepted result. */
+const conflict = (code: InquiryConflictCode, message: string) =>
+  NextResponse.json({ ok: false, code, error: message }, { status: 409 });
+const CHANGED_MESSAGE = "This message changed since the first attempt, so it was not sent. Please send it again.";
+const IN_PROGRESS_MESSAGE = "This message is still being sent. Please wait a moment before trying again.";
+const conflictResponse = (code: InquiryConflictCode) => conflict(code, code === "in_progress" ? IN_PROGRESS_MESSAGE : CHANGED_MESSAGE);
+
+/* ---------- Helpers ---------- */
+function readEnv(name: string): string {
+  const raw = process.env[name];
+  if (typeof raw !== "string") return "";
+  return raw.trim().replace(/^["']|["']$/g, "").trim();
+}
+
+function esc(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function row(label: string, value: string): string {
+  if (!value) return "";
+  return `<tr>
+    <td style="padding:10px 16px;border-bottom:1px solid #e6e9ef;font-weight:600;color:#0a1b33;white-space:nowrap;vertical-align:top;">${esc(label)}</td>
+    <td style="padding:10px 16px;border-bottom:1px solid #e6e9ef;color:#33415c;">${esc(value).replace(/\n/g, "<br/>")}</td>
+  </tr>`;
+}
+
+function sameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true; // Non-browser clients; the other checks still apply.
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "";
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+const isProduction = process.env.VERCEL_ENV === "production";
+
+const failure = (message: string, status: number) =>
+  NextResponse.json({ ok: false, error: message }, { status });
+
+
+export async function POST(request: NextRequest) {
+  if (!sameOrigin(request)) {
+    return failure("Invalid request origin.", 403);
+  }
+
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (rateLimited(ip)) {
+    return failure("Too many messages from this connection in a short time — please wait a few minutes.", 429);
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = (await request.json()) as Record<string, unknown>;
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+  } catch {
+    return failure("Invalid submission.", 400);
+  }
+
+  // Honeypot: a field people never see. Pretend success so bots learn nothing.
+  const honeypot = typeof raw.website === "string" ? raw.website.trim() : "";
+  if (honeypot) {
+    return NextResponse.json({ ok: true });
+  }
+
+  const data = normaliseInquiry(raw);
+  const errors: InquiryErrors = validateInquiry(data);
+  if (Object.keys(errors).length) {
+    return NextResponse.json({ ok: false, errors }, { status: 400 });
+  }
+
+  // The submission id (validated UUID or nothing) becomes the provider's
+  // idempotency key below. It is read after validation, so an id can never
+  // make an invalid message look accepted.
+  const submissionId = readSubmissionId(raw.submissionId);
+
+  /* ---------- Delivery ---------- */
+  const mode = isProduction ? "" : inquiryConfig.forceMock ? "mock" : readEnv(inquiryConfig.env.delivery);
+  if (mode === "fail") {
+    console.error("[inquiry] simulated provider failure (INQUIRY_DELIVERY=fail)");
+    return failure("The message could not be handed to our email service.", 502);
+  }
+
+  const recipientEnv = readEnv(inquiryConfig.env.recipient);
+  const recipients = recipientEnv
+    ? recipientEnv.split(",").map((a) => a.trim()).filter(Boolean)
+    : [...inquiryConfig.recipients];
+  const from = readEnv(inquiryConfig.env.from) || inquiryConfig.from;
+  const subject = [inquiryConfig.subjectPrefix, data.service || null, data.name]
+    .filter(Boolean)
+    .join(" — ");
+
+  const html = `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
+    <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
+      <div style="background:#0a1b33;border-radius:12px 12px 0 0;padding:24px 28px;">
+        <p style="margin:0;color:#c0d634;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">${esc(inquiryConfig.subjectPrefix)}</p>
+        <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;">${esc(data.name)}${data.service ? ` — ${esc(data.service)}` : ""}</h1>
+      </div>
+      <div style="background:#ffffff;border-radius:0 0 12px 12px;padding:8px 12px 20px;">
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          ${row("Name", data.name)}
+          ${row("Email", data.email)}
+          ${row("Phone", data.phone)}
+          ${row("Service", data.service)}
+          ${row("Project details", data.details)}
+        </table>
+        <p style="margin:20px 16px 0;font-size:12px;color:#8a94a6;">
+          Submitted via ${esc(inquiryConfig.sourceLabel)}${data.email ? " · Reply to this email to answer the visitor." : " · No email given — reply by phone."}
+        </p>
+      </div>
+    </div>
+  </body>
+</html>`;
+  const text = [
+    `${inquiryConfig.subjectPrefix} — ${data.name}`,
+    "",
+    `Name: ${data.name}`,
+    data.email ? `Email: ${data.email}` : "",
+    data.phone ? `Phone: ${data.phone}` : "",
+    data.service ? `Service: ${data.service}` : "",
+    "",
+    "Project details:",
+    data.details,
+    "",
+    `Submitted via ${inquiryConfig.sourceLabel}`,
+  ].join("\n");
+
+  // The payload is built ONLY from normalised data and configuration, so an
+  // unchanged retry produces byte-identical content and the provider
+  // recognises it under the same key; an edited message differs and is
+  // refused under a used key.
+  const payload: EmailPayload = {
+    from,
+    to: recipients,
+    ...(data.email && isValidEmail(data.email) ? { replyTo: data.email } : {}),
+    subject,
+    html,
+    text,
+  };
+  const sendOptions = submissionId ? { idempotencyKey: `inquiry/${submissionId}` } : undefined;
+
+  let provider: EmailProvider;
+  if (mode === "mock") {
+    const mockUrl = readEnv(inquiryConfig.env.mockProviderUrl);
+    provider = mockUrl ? httpMockProvider(mockUrl) : memoryMockProvider();
+  } else {
+    const apiKey = readEnv(inquiryConfig.env.apiKey);
+    if (!apiKey) {
+      console.error(`[inquiry] ${inquiryConfig.env.apiKey} is not set in this environment.`);
+      return failure("The contact form is not configured on this server.", 500);
+    }
+    provider = resendProvider(apiKey);
+  }
+
+  try {
+    const { data: sent, error, duplicate } = await provider.send(payload, sendOptions);
+    if (error) {
+      const code = providerConflict(error);
+      if (code) return conflictResponse(code);
+      console.error(`[inquiry] ${provider.kind} send failed:`, error);
+      return failure("The message could not be handed to our email service.", 502);
+    }
+    return NextResponse.json({
+      ok: true,
+      id: sent?.id ?? null,
+      ...(provider.kind === "mock" ? { delivery: "mock" } : {}),
+      ...(duplicate ? { duplicate: true } : {}),
+    });
+  } catch (err) {
+    console.error(`[inquiry] ${provider.kind} send threw:`, err);
+    return failure("The message could not be handed to our email service.", 502);
+  }
+}

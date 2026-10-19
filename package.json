@@ -1,0 +1,41 @@
+{
+  "name": "showme-electrical-careers",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint --max-warnings 0",
+    "qa:manifest": "node scripts/qa/manifest.mjs",
+    "qa:crawl": "node scripts/qa/crawl.mjs",
+    "qa:crawl:test": "node scripts/qa/crawl.test.mjs",
+    "qa": "npm run qa:crawl:test && npm run qa:manifest && npm run qa:crawl -- http://localhost:3000 --host showmeelectrical.com --assets remap",
+    "typecheck": "tsc --noEmit",
+    "typecheck:brand": "node scripts/qa/typecheck-brand.mjs",
+    "qa:forms": "node scripts/qa/forms.test.mjs",
+    "qa:provider": "tsx scripts/qa/provider.test.mjs",
+    "qa:mock-provider": "node scripts/qa/mock-provider.mjs",
+    "verify": "bash scripts/qa/verify.sh"
+  },
+  "dependencies": {
+    "@gsap/react": "^2.1.2",
+    "gsap": "^3.15.0",
+    "next": "^15.4.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "resend": "^6.24.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.24",
+    "playwright-core": "^1.56.1",
+    "tailwindcss": "^4.1.11",
+    "tsx": "^4.23.13",
+    "typescript": "^5.7.0"
+  }
+}
