@@ -60,10 +60,18 @@ carries the most important ones as reviewer notes.
 
 ## Operations
 
-13. **Hosting and DNS.** A Vercel project with `COMPASS_BRAND=medicwisdom`
-    in every environment, `NEXT_PUBLIC_SITE_URL`, and
-    `NEXT_PUBLIC_ALLOW_INDEXING=true` in production only. Then the
-    Foundation's `docs/launch-checklist.md`.
-14. **CRM record.** Medic Wisdom is not a client in Compass CRM yet. This
-    build was made by hand, not by the Foundation worker, so there is no
-    `sites` row, build brief, brand board or keyword plan behind it.
+13. **Hosting.** Done Oct 19 2026. The Vercel project is `medicwisdom` on
+    the compassmarketin team. `COMPASS_BRAND=medicwisdom` is set in every
+    environment, and the production branch is `main` (also the GitHub
+    default). Deployments sit behind Vercel's team login at
+    `medicwisdom-compassmarketin.vercel.app`. Still to do at launch: set
+    `NEXT_PUBLIC_SITE_URL` once the domain is settled (#1), set
+    `NEXT_PUBLIC_ALLOW_INDEXING=true` in production only, set
+    `RESEND_API_KEY` and `INQUIRY_RECIPIENT` (#2), point DNS, then follow
+    the Foundation's `docs/launch-checklist.md`.
+14. **CRM record.** Done Oct 19 2026. The client is
+    `51b886da-0bad-45d5-977e-be8fea5e148b`, with work mode
+    `upgrade_existing` against this repository and `main`, and brand
+    `medicwisdom`. The Foundation worker's Brand Build, Taxonomy and Keyword
+    Research stages run first. After that, Website changes arrive as
+    preview branches and pull requests against `main`.
