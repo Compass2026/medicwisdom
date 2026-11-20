@@ -120,7 +120,10 @@ export default function ServicesDirectoryPage() {
                         className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500"
                       />
                       {s.href ? (
-                        <Link href={s.href} className="hover:text-accent-700">
+                        <Link
+                          href={s.href}
+                          className="-my-0.5 inline-block py-0.5 hover:text-accent-700"
+                        >
                           {s.name}
                         </Link>
                       ) : (
